@@ -1,0 +1,80 @@
+---
+title: "Programmming Nearest Neigbour in C++"
+author: "Ignacio Almodóvar & Andrés Mejía"
+date: "12/7/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Translate R code into C++
+
+In order to translate the code given in the task, we just needed to change the syntaxis from R to C++. These two languages at a basic level are not that different. Therefore, the changes that we had to made were related to declaring variables within their types and writing ";" at the end of every row of code. Also, there were a few changes on the way that loops are writen.
+
+```{r, eval=FALSE}
+// [[Rcpp::export]]
+int my_knn_cpp(NumericMatrix X, NumericVector X0, NumericVector y) {
+  
+  int nrows=  X.nrow();
+  int ncols=  X.ncol();
+  
+  double closest_distance = 99999999;
+  int closest_output=-1;
+  int closest_neighbor=-1;
+
+  double diff=0;
+  
+  for(int i=0; i<nrows;i++){
+    double distance =0;
+    for(int j=0; j<ncols; j++){
+      diff=X(i,j)-X0[j];
+      distance+=diff*diff;
+      
+    }
+    
+    if(distance<closest_distance){
+      closest_distance=distance;
+      closest_output=y[i];
+      closest_neighbor=i;
+    }
+    
+  }
+  
+  return closest_output;
+}
+```
+
+## Compile the C++ code with sourceCpp. Show in your report that you have used sourceCpp.
+
+The function mentioned above was written in a .cpp file. In order to be able to use it in a R script we need to add this file using a function from the library Rcpp called "sourceCpp()".
+
+```{r}
+library(Rcpp)
+library(FNN)
+
+sourceCpp('src/rcpp_hello_world.cpp')
+```
+
+The data that we are going to run all this functions is going to be the same as the one used in the example given. 
+
+```{r}
+data("iris")
+X <- iris[,-5]
+y <- iris[,5]
+X <- as.matrix(X)
+y <- as.integer(y)
+
+# This is the point we want to predict
+X0 <- c(5.80, 3.00, 4.35, 1.30)
+```
+
+Now we can run our function coded in C++.
+
+```{r}
+my_knn_cpp(X,X0,y)
+```
+
+## Check that you get the same results than the knn that belongs to library FNN or classif (choose one)
+
