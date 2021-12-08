@@ -1,12 +1,11 @@
-Package: Package
+Package: KNNhomework
 Type: Package
-Title: What the Package Does in One 'Title Case' Line
-Version: 1.0
+Title: K nearest neighbors classification
+Version: 0.9
 Date: 2021-11-19
-Author: Your Name
-Maintainer: Your Name <your@email.com>
-Description: One paragraph description of what the package does as one or more full
-          sentences.
+Author: Ignacio Almodovar & Andrés Mejía
+Maintainer: Andres Mejia <andres.mejia.ro@gmail.com>
+Description: K nearest neighbors classification.
 License: GPL (>= 2)
 Imports: Rcpp (>= 1.0.7)
 LinkingTo: Rcpp

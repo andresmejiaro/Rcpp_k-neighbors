@@ -2,7 +2,9 @@
 title: "Programmming Nearest Neigbour in C++"
 author: "Ignacio Almodóvar & Andrés Mejía"
 date: "12/7/2021"
-output: html_document
+output:
+  word_document: default
+  html_document: default
 ---
 
 ```{r setup, include=FALSE}
@@ -13,7 +15,7 @@ knitr::opts_chunk$set(echo = TRUE)
 
 In order to translate the code given in the task, we just needed to change the syntaxis from R to C++. These two languages at a basic level are not that different. Therefore, the changes that we had to made were related to declaring variables within their types and writing ";" at the end of every row of code. Also, there were a few changes on the way that loops are writen.
 
-```{r, eval=FALSE}
+```{cpp, eval=FALSE}
 // [[Rcpp::export]]
 int my_knn_cpp(NumericMatrix X, NumericVector X0, NumericVector y) {
   
@@ -53,8 +55,10 @@ The function mentioned above was written in a .cpp file. In order to be able to 
 ```{r}
 library(Rcpp)
 library(FNN)
+library(microbenchmark)
+library(dplyr)
 
-sourceCpp('src/rcpp_hello_world.cpp')
+sourceCpp('src/function_c.cpp')
 ```
 
 The data that we are going to run all this functions is going to be the same as the one used in the example given. 
@@ -77,4 +81,274 @@ my_knn_cpp(X,X0,y)
 ```
 
 ## Check that you get the same results than the knn that belongs to library FNN or classif (choose one)
+
+```{r,echo=FALSE}
+my_knn_R = function(X, X0, y){
+  # X data matrix with input attributes
+  # y response variable values of instances in X  
+  # X0 vector of input attributes for prediction
+  
+  nrows = nrow(X)
+  ncols = ncol(X)
+  
+  # One of the instances is going to be the closest one:
+  #   closest_distance: it is the distance , min_output
+  closest_distance = 99999999
+  closest_output = -1
+  closest_neighbor = -1
+  
+  for(i in 1:nrows){
+    
+    distance = 0
+    for(j in 1:ncols){
+      difference = X[i,j]-X0[j]
+      distance = distance + difference * difference
+    }
+    
+    distance = sqrt(distance)
+    
+    if(distance < closest_distance){
+      closest_distance = distance
+      closest_output = y[i]
+      closest_neighbor = i
+    }
+  }
+  closest_output
+}
+```
+
+Using the function given in the task and the one from the library KNN, we can compute the distances for our sample and check that we get the same results in our c++ function.
+
+```{r}
+my_knn_R(X,X0,y)
+d=FNN::knn(X, matrix(X0, nrow = 1), y, k=1)
+d[[1]]
+```
+
+## Use the library microbenchmark in order to determine whether the C++ version is faster than:
+
+Using "microbenchmark()" function, we can calculate the time taken for each function to be computed.
+
+### The R version of the code
+
+```{r}
+microbenchmark(my_knn_cpp(X,X0,y),my_knn_R(X,X0,y))
+```
+
+As expected, the C++ function is 287.50 times faster than the R one. This is due to the fact that R is an interpreted language whereas C++ is a compiled language. 
+
+### The knn of FNN / classif
+
+```{r}
+microbenchmark(my_knn_cpp(X,X0,y),FNN::knn(X, matrix(X0, nrow = 1), y, k=1))
+```
+
+In this case we have obtained again that the function in C++ is 131.8396 times faster. Checking the "FNN::knn()" function (using the f2 key) we can see that it is better optimized than the function "my_knn_R()". However, it still runs in pure R. Therefore it gets better but it is not going to be as faster as C++.
+
+# Create a function that calculates Minkowsky distance.
+
+We have created a function called "Mink_dist" inside the package "knnH". This function takes two vectors and an argument that, if positive, then it is exponent p, and if zero or negative, then it means $L_\infty$.
+
+```{r,eval=FALSE}
+double Mink_dist(NumericVector x,NumericVector y,double p) {
+  
+  double cumulant=0;
+  double expre =0;
+  
+  if(p<=0){
+    for(int i=0; i<x.length();i++){
+      expre=fabs(x[i]-y[i]);
+      if(expre>cumulant){
+        cumulant=expre;
+      }
+    }
+    return cumulant;
+  }
+  
+  for(int i=0; i<x.length();i++){
+    expre=pow(fabs(x[i]-y[i]),p);
+    cumulant+=expre;
+  }
+  
+  double k=1/p;
+  cumulant=pow(cumulant,k);
+  
+  return cumulant;
+}
+```
+
+Here we show some examples:
+
+```{r}
+#install.packages("/Users/ignacioalmodovarcardenas/Desktop/Advanced programming/knnH_0.9.tar.gz",
+#                 repos=NULL,type = "source")
+library(knnH)
+
+a=1:3
+b=4:6
+
+Mink_dist(a,b,2)
+sum(abs(a-b)^2)^(1/2)
+
+Mink_dist(a,b,7)
+sum(abs(a-b)^7)^(1/7)
+
+Mink_dist(a,b,-1)
+min(abs(a-b))
+
+```
+
+
+# Standarization and Normalization
+
+We created the following functions included the package "knnH" to normalize and standardize our data.
+
+- stand_data(): Standardize a vector.
+- stand_data_Matrix(): Standardize each column of a matrix.
+- minmax_data(): Normalize a vector
+- minmax_data_Matrix(): Normalize each column of a vector.
+
+```{r,  eval=FALSE}
+// [[Rcpp::export]]
+NumericVector minmax_data(NumericVector x) {
+  
+  double minx=min(x);
+  double maxx=max(x);
+  
+  NumericVector xs=x-minx;
+  xs=xs/(maxx-minx);
+  
+  return xs;
+}
+
+
+// [[Rcpp::export]]
+NumericVector stand_data(NumericVector x) {
+  
+  double meanx=mean(x);
+  double sdx=sd(x);
+  NumericVector xs=x-meanx;
+  xs=xs/sdx;
+  
+  return xs;
+}
+
+// [[Rcpp::export]]
+NumericMatrix stand_data_Matrix(NumericMatrix X) {
+  NumericMatrix X_outmm=clone(X);
+  for(int i=0;i<X_outmm.ncol();i++) {
+    X_outmm(_,i) = stand_data(X_outmm(_,i));
+  }
+  return(X_outmm);
+}
+
+// [[Rcpp::export]]
+NumericMatrix minmax_data_Matrix(NumericMatrix X) {
+  NumericMatrix X_outm=clone(X);
+  for(int i=0;i<X_outm.ncol();i++){
+    X_outm(_,i)=minmax_data(X_outm(_,i));
+  }
+  return X_outm;
+}
+
+```
+
+Some examples:
+
+```{r}
+A=stand_data_Matrix(X)
+for(i in 1:ncol(A)){
+  paste0("La media de la columna ",i, " es ",mean(A[,i]), " y la desviacion ",sd(A[,i])) %>% print()
+}
+```
+
+```{r}
+A=minmax_data_Matrix(X)
+for(i in 1:ncol(A)){
+  paste0("El mínimo de la columna ",i, " es ",min(A[,i]), " y el maximo ",max(A[,i])) %>% print()
+}
+```
+
+# Final function
+
+Using all these functions we have built another function that uses all these methods. This main function is also included in the package that we have built "knnH".
+
+```{r,eval=FALSE}
+// [[Rcpp::export]]
+int knn_completa(NumericMatrix X, NumericVector X0, NumericVector y, int modo, int mk) {
+  
+  NumericMatrix X_out=clone(X);
+  NumericVector X0_out=clone(X0);
+  
+  if(modo==0 || modo==1){
+    if(modo==0){
+      X_out=stand_data_Matrix(X_out);
+      for(int i=0;i<X.ncol();i++){
+        double meanx=mean(X(_,i));
+        double sdx=sd(X(_,i));
+        X0_out[i]=(X0[i]-meanx)/sdx;
+      }
+      
+    }
+    else{
+      
+      X_out= minmax_data_Matrix(X_out);
+      for(int i=0;i<X.ncol();i++) {
+        double minx=min(X(_,i));
+        double maxx=max(X(_,i));
+        X0_out[i]=(X0[i]-minx)/(maxx-minx);
+      }
+    }
+  }
+  
+  else{
+    printf("Fourth argument must be 0 or 1");
+    return(NULL);
+  }
+  
+  int nrows=  X_out.nrow();
+  
+  double closest_distance = 99999999;
+  int closest_output=-1;
+  int closest_neighbor=-1;
+  
+  double distance=0;
+  
+  for(int i=0; i<nrows;i++){
+    distance=Mink_dist(X_out(i,_),X0_out,mk);
+    
+    if(distance<closest_distance){
+      closest_distance=distance;
+      closest_output=y[i];
+      closest_neighbor=i;
+    }
+    
+  }
+  
+  return closest_output;
+}
+```
+
+Now we test the function:
+
+```{r}
+knn_completa(X,X0,y,modo = 1,mk = 2)
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
